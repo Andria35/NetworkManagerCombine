@@ -1,11 +1,6 @@
 import Foundation
 import Combine
 
-public enum APIError: Error {
-    case invalidResponse
-    case invalidData
-}
-
 // ----------------------------------------
 public protocol APIClient {
     associatedtype EndpointType: APIEndpoint
