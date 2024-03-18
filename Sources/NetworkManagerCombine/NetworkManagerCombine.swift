@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 
-protocol APIEndpoint {
+public protocol APIEndpoint {
     var baseURL: URL { get }
     var path: String { get }
     var method: HTTPMethod { get }
@@ -9,7 +9,7 @@ protocol APIEndpoint {
     var parameters: [String: Any]? { get }
 }
 
-enum HTTPMethod: String {
+public enum HTTPMethod: String {
     case get = "GET"
     case post = "POST"
     case put = "PUT"
@@ -17,20 +17,22 @@ enum HTTPMethod: String {
     case delete = "DELETE"
 }
 
-enum APIError: Error {
+public enum APIError: Error {
     case invalidResponse
     case invalidData
 }
 
 // ----------------------------------------
-protocol APIClient {
+public protocol APIClient {
     associatedtype EndpointType: APIEndpoint
     func request<T: Decodable>(_ endpoint: EndpointType) -> AnyPublisher<T, Error>
 }
 
-class NetworkManagerCombine<EndpointType: APIEndpoint>: APIClient {
+public class NetworkManagerCombine<EndpointType: APIEndpoint>: APIClient {
     
-    func request<T: Decodable>(_ endpoint: EndpointType) -> AnyPublisher<T, Error> {
+    public init() {}
+    
+    public func request<T: Decodable>(_ endpoint: EndpointType) -> AnyPublisher<T, Error> {
         
         let url = endpoint.baseURL.appendingPathComponent(endpoint.path)
         var request = URLRequest(url: url)
