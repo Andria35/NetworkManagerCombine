@@ -1,81 +1,54 @@
 import Foundation
 import Combine
 
-public struct RequestModel {
-    let endPoints: EndPoints
-    let body: Data?
-    let requestTimeOut: Float?
-    
-//    public init(endPoints: EndPoints,
-//                reqBody: Encodable? = nil,
-//                requestTimeOut: Float?) {
-//        self.endPoints = endPoints
-//        self.body = reqBody?.encode()
-//        self.requestTimeOut = requestTimeOut
-//    }
-    
-    public init(endPoints: EndPoints, body: Data? = nil, requestTimeOut: Float? = nil) {
-        self.endPoints = endPoints
-        self.body = body
-        self.requestTimeOut = requestTimeOut
-    }
-    
-    func getUrlRequest() -> URLRequest? {
-        
-        guard let url = endPoints.getUrl() else {
-            print("URL not found")
-            return nil
-        }
-        // create request
-        var request: URLRequest = URLRequest(url: url)
-        
-        request.httpMethod = endPoints.method.rawValue
-        
-        return request
-    }
+protocol APIEndpoint {
+    var baseURL: URL { get }
+    var path: String { get }
+    var method: HTTPMethod { get }
+    var headers: [String: String]? { get }
+    var parameters: [String: Any]? { get }
 }
 
-@available(macOS 10.15, *)
-public protocol APIServices {
-    var requestTimeOut: Float { get }
-    
-    func request<T: Codable>(_ req: RequestModel) -> AnyPublisher<T, Error>
+enum HTTPMethod: String {
+    case get = "GET"
+    case post = "POST"
+    case put = "PUT"
+    case patch = "PATCH"
+    case delete = "DELETE"
 }
 
-@available(macOS 10.15, *)
-public class NetworkManagerCombine: APIServices {
+enum APIError: Error {
+    case invalidResponse
+    case invalidData
+}
+
+// ----------------------------------------
+protocol APIClient {
+    associatedtype EndpointType: APIEndpoint
+    func request<T: Decodable>(_ endpoint: EndpointType) -> AnyPublisher<T, Error>
+}
+
+class NetworkManagerCombine<EndpointType: APIEndpoint>: APIClient {
     
-    public var requestTimeOut: Float = 30
-    
-    public func request<T>(_ req: RequestModel) -> AnyPublisher<T, Error> where T : Codable {
-        let sessionConfig = URLSessionConfiguration.default
-        sessionConfig.timeoutIntervalForRequest = TimeInterval(req.requestTimeOut ?? requestTimeOut)
+    func request<T: Decodable>(_ endpoint: EndpointType) -> AnyPublisher<T, Error> {
         
-        guard let request = req.getUrlRequest() else {
-            return Fail(error: URLError(.badURL)).eraseToAnyPublisher()
-        }
+        let url = endpoint.baseURL.appendingPathComponent(endpoint.path)
+        var request = URLRequest(url: url)
+        request.httpMethod = endpoint.method.rawValue
         
-        return URLSession.shared
-            .dataTaskPublisher(for: request)
-            .tryMap { (output) in
-                
-                guard output.response is HTTPURLResponse else {
-                    throw NetworkError.serverError
+        endpoint.headers?.forEach { request.addValue($0.value, forHTTPHeaderField: $0.key) }
+        // set up any other request parameters here
+        
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .subscribe(on: DispatchQueue.global(qos: .background))
+            .tryMap { data, response -> Data in
+                guard let httpResponse = response as? HTTPURLResponse,
+                      (200...299).contains(httpResponse.statusCode) else {
+                    throw APIError.invalidResponse
                 }
-                return output.data
+                return data
             }
             .decode(type: T.self, decoder: JSONDecoder())
-            .mapError { error in
-                NetworkError.invalidJSON
-            }
             .eraseToAnyPublisher()
     }
-    
-    
-}
-
-enum NetworkError: Error {
-    case serverError
-    case invalidJSON
-    case invalidUrlRequest
 }
