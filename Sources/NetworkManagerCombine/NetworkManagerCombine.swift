@@ -1,14 +1,6 @@
 import Foundation
 import Combine
 
-public enum HTTPMethod: String {
-    case get = "GET"
-    case post = "POST"
-    case put = "PUT"
-    case patch = "PATCH"
-    case delete = "DELETE"
-}
-
 public enum APIError: Error {
     case invalidResponse
     case invalidData
